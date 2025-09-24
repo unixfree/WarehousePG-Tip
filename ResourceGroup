@@ -1,7 +1,15 @@
-리소스 그룹은 **워크로드 관리(Workload Management)**를 위한 Greenplum의 핵심 기능입니다. 특정 사용자 그룹(Role)이 사용할 수 있는 CPU, 메모리, 동시성(동시 실행 쿼리 수)을 제한하여, 중요한 작업이 리소스를 안정적으로 확보하고 시스템 전체의 과부하를 방지하는 역할을 합니다.
+https://warehouse-pg.io/docs/7x/admin_guide/workload_mgmt_resgroups.html#using-resource-groups
+
+리소스 그룹은 **워크로드 관리(Workload Management)**를 위한 Greenplum의 핵심 기능입니다. 
+특정 사용자 그룹(Role)이 사용할 수 있는 CPU, 메모리, 동시성(동시 실행 쿼리 수)을 제한하여, 중요한 작업이 리소스를 안정적으로 확보하고 시스템 전체의 과부하를 방지하는 역할을 합니다.
 
 시나리오
 대시보드 조회를 위한 사용자 그룹(dashboard_users)과 데이터 로딩을 위한 ETL 그룹(etl_users)을 나누어 리소스를 할당하는 예시입니다.
+
+0단계: postgresql.conf 설정.
+gpconfig -s gp_resource_manager
+gpconfig -c gp_resource_manager -v group
+gpstop -r
 
 1단계: 리소스 그룹 생성 (CREATE RESOURCE GROUP)
 먼저, 각 그룹의 리소스 제한을 정의하여 생성합니다.
@@ -10,19 +18,16 @@ dashboard_users_rg: 대시보드 사용자를 위한 그룹. 쿼리 5개가 동�
 
 etl_users_rg: ETL 작업을 위한 그룹. 동시 실행은 2개로 제한하지만, 더 많은 CPU와 메모리(각각 50%)를 할당합니다.
 
-SQL
-
 -- 대시보드 사용자용 리소스 그룹 생성
 CREATE RESOURCE GROUP dashboard_users_rg WITH (
-    CPU_RATE_LIMIT=30,      -- CPU 사용률 30% 제한
-    MEMORY_LIMIT=20,        -- 메모리 사용률 20% 제한
+    CPU_MAX_PERCENT=20,       -- CPU 사용률 30% 제한
+    MEMORY_QUOTA=250,     -- 메모리 사용률 20% 제한
     CONCURRENCY=5           -- 동시 실행 쿼리 수 5개 제한
 );
-
 -- ETL 사용자용 리소스 그룹 생성
 CREATE RESOURCE GROUP etl_users_rg WITH (
-    CPU_RATE_LIMIT=50,
-    MEMORY_LIMIT=50,
+    CPU_MAX_PERCENT=20, 
+    MEMORY_QUOTA=250, 
     CONCURRENCY=2
 );
 참고: MEMORY_SHARED_QUOTA 옵션을 사용하여 그룹 내 쿼리들이 공유할 메모리 비율을 정할 수도 있습니다.
@@ -62,3 +67,21 @@ FROM pg_roles, gp_toolkit.gp_resgroup_config
 WHERE pg_roles.rolresgroup = gp_toolkit.gp_resgroup_config.groupid
   AND rolname IN ('dashboard_user', 'etl_user');
 이처럼 리소스 그룹을 사용하면, 다양한 워크로드가 서로 영향을 주지 않고 안정적으로 실행되도록 시스템 리소스를 효과적으로 통제하고 관리할 수 있습니다.
+
+----------
+대시보드 사용자용 리소스 그룹 생성 예시.
+CREATE RESOURCE GROUP rgroup1 WITH (
+    CONCURRENCY=20, 
+    CPU_MAX_PERCENT=20, 
+    MEMORY_QUOTA=250, 
+    CPU_WEIGHT=500, 
+    MIN_COST=50, 
+    IO_LIMIT='pg_default: wbps=1000, rbps=1000, wiops=100, riops=100'
+);
+
+ALTER RESOURCE GROUP rg_role_light SET CONCURRENCY 7;
+ALTER RESOURCE GROUP exec SET MEMORY_QUOTA 30;
+ALTER RESOURCE GROUP rgroup1 SET CPUSET '1;2,4';
+ALTER RESOURCE GROUP sales SET IO_LIMIT 'tablespace1:wbps=2000,wiops=2000;tablespace2:rbps=2024,riops=2024';
+
+DROP RESOURCE GROUP exec;

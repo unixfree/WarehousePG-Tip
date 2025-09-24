@@ -29,17 +29,15 @@ https://gpdbkr.blogspot.com/
 9. 백업/복구 <br>
    gpbackup/gprestore
 10. 노드장애 복구  <br>
-   gprecoverseg
+    gprecoverseg  <br>
 11. 운영관리 <br>
-   카달로그 무결성 확인 : gpcheckcat <br>
-     ```
-     gpcheckcat -g /home/gpadmin/fix_catalog.sql testdb
-     ``` <br>
+    카달로그 무결성 확인 <br>
+    ```gpcheckcat -g /home/gpadmin/fix_catalog.sql testdb``` <br>
    vacuum, analyze, reindex <br>
    skew 관리. <br>
-11. 자원관리 <br>
+12. 자원관리 <br>
     Resource Group
-12. 파라메터 변경. <br>
+13. 파라메터 변경. <br>
     gpconfig
-13. 기타 <br>
+14. 기타 <br>
     hint

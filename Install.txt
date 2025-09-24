@@ -109,15 +109,14 @@ echo "gpadmin" | sudo passwd --stdin "gpadmin"
  
 hosts 화일 수정, ( 아래는 예시)
 
-```
 sudo tee -a /etc/hosts << EOF
 10.0.27.155 whpg-m
 10.0.23.136 whpg-sm
 10.0.25.24 whpg-s1
 10.0.31.198 whpg-s2
 EOF
-```
- 주의 : 모든 node의 hostname을 /etc/hosts의 이름과 동일하게 설정해야 함.
+
+주의 : 모든 node의 hostname을 /etc/hosts의 이름과 동일하게 설정해야 함.
 
 5.gpadmin 계정의 암호없이 노드간 접속이 되도록 설정
 

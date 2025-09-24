@@ -1,18 +1,20 @@
 WHPG 교육 목차
 
 참고 URL
+```
 https://warehouse-pg.io/docs/7x/
 https://gpdbkr.blogspot.com/
+```
 
 1. 아키텍처 설명
 2. 설치
-   gpinitsystem
-   gpdeletesystem
-   gpinitstandby
-   gpactivatestandby
-   gpstart -a
-   gpstop -u | -af
-   gpstate -e | -m  | -s 
+   gpinitsystem <br>
+   gpdeletesystem <br>
+   gpinitstandby <br>
+   gpactivatestandby <br>
+   gpstart -a <br>
+   gpstop -u | -af <br>
+   gpstate -e | -m  | -s  <br>
 3. table 생성
    - 분산키
    - 파티션

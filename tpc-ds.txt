@@ -1,0 +1,38 @@
+## TPCDS for warehousePG
+
+at Master
+
+$ su - gpadmin
+$ git clone https://github.com/gpdbkr/gpmixedworkload.git
+
+$ pip install psycopg2-binary
+
+$ vi  /data/master/gpseg-1/pg_hba.conf 
+local all all trust
+host all all 0.0.0.0/0 trust
+
+$ vi /home/gpadmin/.bashrc
+
+at SDW1
+$ vi /home/gpadmin/.bashrc
+source /usr/local/greenplum-db/greenplum_path.sh 
+$ scp .bashrc sdw2:/home/gpadmin/.bashrc
+
+at Master
+
+$ cd gpmixedworkload
+$ cd shell
+$ sh gpconfigs.sh
+
+$ ./poc_init.sh 
+
+에러 발생. 
+ERROR:  relation "store_returns" does not exist
+
+ALTER ROLE dsbench SET search_path = "$user", public, tpcds, ext_tpcds;
+ALTER ROLE gpadmin SET search_path = "$user", public, gp_toolkit, tpcds;
+
+$ nohup ./poc_run_all.sh & 
+
+$ cd /home/gpadmin/gpmixedworkload/TPC-DS
+$ nohup ./tpcds.sh > tpcds.log 2>&1 < tpcds.log &

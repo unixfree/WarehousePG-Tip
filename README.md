@@ -14,7 +14,7 @@ https://gpdbkr.blogspot.com/
    gpinitstandby 
    gpactivatestandby 
    gpstart -a 
-   gpstop -u | -af 
+   gpstop -u | -r |  -af 
    gpstate -e | -m  | -s  
    ```
 4. table 생성
@@ -38,6 +38,8 @@ https://gpdbkr.blogspot.com/
 12. 자원관리 <br>
     Resource Group
 13. 파라메터 변경. <br>
-    gpconfig
+    ```gpconfig -s max_connections``` <br>
+    ```gpconfig -c statement_timeout -v 600000``` <br>
+    ```gpconfig -c work_mem -v "256MB"``` <br>
 14. 기타 <br>
     hint

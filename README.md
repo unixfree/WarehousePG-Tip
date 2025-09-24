@@ -25,19 +25,21 @@ https://gpdbkr.blogspot.com/
    gpload, gpfdist
 7. PXF
    pxf 
-8. TPC-DS 수행
-9. 백업/복구
+8. TPC-DS 수행 <br>
+9. 백업/복구 <br>
    gpbackup/gprestore
-10. 노드장애 복구 
+10. 노드장애 복구  <br>
    gprecoverseg
-11. 운영관리
+11. 운영관리 <br>
    > 카달로그 무결성 확인 : gpcheckcat
+     ```
      gpcheckcat -g /home/gpadmin/fix_catalog.sql testdb
+     ```
    > vacuum, analyze, reindex
    > skew 관리.
-11. 자원관리
+11. 자원관리 <br>
     Resource Group
-12.
+12. 파라메터 변경. <br>
     gpconfig
-13. 기타
+13. 기타 <br>
     hint

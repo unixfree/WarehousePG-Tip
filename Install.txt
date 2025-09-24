@@ -1,10 +1,11 @@
 WarehousePG 설치 가이드
 
-WarehousePG 를 설치하기 위해 필요한 추가 rpm 설치.
-
+지원 OS
 Red Hat Enterprise Linux 64-bit 8.7 or later
 Oracle Linux 64-bit 8.7 or later, using the Red Hat Compatible Kernel (RHCK) 
 Rocky Linux 8.7 or later
+
+1.WarehousePG 를 설치하기 위해 필요한 추가 rpm 설치.
 
 #!/bin/bash
 # run on all nodes
@@ -23,7 +24,7 @@ sudo update-alternatives set python3 /usr/bin/python3.11
 sudo update-alternatives set python /usr/bin/python3.11
  
 
-OS 설치
+2.OS 환경 설정.
 
 #For all WarehousePG host systems running RHEL, CentOs or Rocky8, SELinux must either be Disabled or configured to allow unconfined access to WarehousePG processes, directories, and the gpadmin user.
 sudo setenforce 0
@@ -99,7 +100,7 @@ EOF
 ulimit -n 65536 65536
  
 
-gpadmin 계정 생성
+3.gpadmin 계정 생성
 
 # Add Group and User for WarehousePG
 sudo groupadd gpadmin
@@ -107,7 +108,7 @@ sudo useradd gpadmin -g gpadmin -m
 #sudo usermod -aG wheel gpadmin
 echo "gpadmin" | sudo passwd --stdin "gpadmin"
  
-hosts 화일 수정, ( 아래는 예시)
+4.hosts 화일 수정, ( 아래는 예시)
 
 sudo tee -a /etc/hosts << EOF
 10.0.27.155 whpg-m

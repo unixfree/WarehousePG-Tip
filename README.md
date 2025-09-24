@@ -1,13 +1,13 @@
-WHPG 교육 목차
+#WHPG 교육 목차
 
-참고 URL
+##참고 URL
 ```
 https://warehouse-pg.io/docs/7x/
 https://gpdbkr.blogspot.com/
 ```
 
 1. 아키텍처 설명
-2. 설치
+2. 설치 <br>
    gpinitsystem <br>
    gpdeletesystem <br>
    gpinitstandby <br>

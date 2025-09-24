@@ -1,0 +1,275 @@
+WarehousePG 설치 가이드
+
+WarehousePG 를 설치하기 위해 필요한 추가 rpm 설치.
+
+Red Hat Enterprise Linux 64-bit 8.7 or later
+Oracle Linux 64-bit 8.7 or later, using the Red Hat Compatible Kernel (RHCK) 
+Rocky Linux 8.7 or later
+
+#!/bin/bash
+# run on all nodes
+sudo dnf update -y
+sudo dnf install apr apr-util bash bzip2 curl iproute krb5-devel libcgroup-tools \
+  libcurl libevent libuuid libuv libxml2 libyaml libzstd openldap openssh \
+  openssh-client openssh-server openssl openssl-libs perl python3 python3-psycopg2 \
+  python3-psutil python3-pyyaml readline rsync \
+  sed tar which zip zlib
+# Java 설치.
+sudo dnf config-manager --set-enabled crb
+sudo dnf install java-1.8.0-openjdk-devel
+# Python3.11 설치
+sudo yum install python3.11 python3.11-devel python3.11-psycopg2 python3.11-pyyaml python3.11-psutil
+sudo update-alternatives set python3 /usr/bin/python3.11
+sudo update-alternatives set python /usr/bin/python3.11
+ 
+
+OS 설치
+
+#For all WarehousePG host systems running RHEL, CentOs or Rocky8, SELinux must either be Disabled or configured to allow unconfined access to WarehousePG processes, directories, and the gpadmin user.
+sudo setenforce 0
+sudo sed -i "s/^SELINUX=.*/SELINUX=disabled/" /etc/selinux/config
+#To prevent SELinux-related SSH authentication denials that could occur even with SELinux deactivated
+sudo tee -a /etc/sssd/sssd.conf << EOF
+selinux_provider=none
+EOF
+sudo systemctl stop firewalld.service
+#Configure kernel settings so the system is optimized for WarehousePG.
+#sudo tee -a /etc/sysctl.d/10-whpg.conf << EOF
+sudo tee -a /etc/sysctl.conf << EOF
+kernel.msgmax = 65536
+kernel.msgmnb = 65536
+kernel.msgmni = 2048
+kernel.sem = 500 2048000 200 8192
+kernel.shmmni = 1024
+kernel.core_uses_pid = 1
+kernel.core_pattern=/var/core/core.%h.%t
+kernel.sysrq = 1
+net.core.netdev_max_backlog = 2000
+net.core.rmem_max = 4194304
+net.core.wmem_max = 4194304
+net.core.rmem_default = 4194304
+net.core.wmem_default = 4194304
+net.ipv4.tcp_rmem = 4096 4224000 16777216
+net.ipv4.tcp_wmem = 4096 4224000 16777216
+net.core.optmem_max = 4194304
+net.core.somaxconn = 10000
+net.ipv4.ip_forward = 0
+net.ipv4.tcp_congestion_control = cubic
+net.ipv4.tcp_tw_recycle = 0
+net.core.default_qdisc = fq_codel
+net.ipv4.tcp_mtu_probing = 0
+net.ipv4.conf.all.arp_filter = 1
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.ip_local_port_range = 10000 65535
+net.ipv4.tcp_max_syn_backlog = 4096
+net.ipv4.tcp_syncookies = 1
+net.ipv4.ipfrag_high_thresh = 41943040
+net.ipv4.ipfrag_low_thresh = 31457280
+net.ipv4.ipfrag_time = 60
+net.ipv4.ip_local_reserved_ports=65330
+vm.overcommit_memory = 2
+vm.overcommit_ratio = 95
+vm.swappiness = 10
+vm.dirty_expire_centisecs = 500
+vm.dirty_writeback_centisecs = 100
+vm.zone_reclaim_mode = 0
+EOF
+RAM_IN_KB=`cat /proc/meminfo | grep MemTotal | awk '{print $2}'`
+RAM_IN_BYTES=$(($RAM_IN_KB*1024))
+echo "vm.min_free_kbytes = $(($RAM_IN_BYTES*3/100/1024))" | sudo tee -a /etc/sysctl.conf > /dev/null
+echo "kernel.shmall = $(($RAM_IN_BYTES/2/4096))" | sudo tee -a /etc/sysctl.conf > /dev/null
+echo "kernel.shmmax = $(($RAM_IN_BYTES/2))" | sudo tee -a /etc/sysctl.conf > /dev/null
+if [ $RAM_IN_BYTES -le $((64*1024*1024*1024)) ]; then
+    echo "vm.dirty_background_ratio = 3" | sudo tee -a /etc/sysctl.conf > /dev/null
+    echo "vm.dirty_ratio = 10" | sudo tee -a /etc/sysctl.conf > /dev/null
+else
+    echo "vm.dirty_background_ratio = 0" | sudo tee -a /etc/sysctl.conf > /dev/null
+    echo "vm.dirty_ratio = 0" | sudo tee -a /etc/sysctl.conf > /dev/null
+    echo "vm.dirty_background_bytes = 1610612736 # 1.5GB" | sudo tee -a /etc/sysctl.conf > /dev/null
+    echo "vm.dirty_bytes = 4294967296 # 4GB" | sudo tee -a /etc/sysctl.conf > /dev/null
+fi
+sudo sysctl -p
+sudo tee -a /etc/security/limits.d/10-nproc.conf << EOF
+* soft nofile 524288
+* hard nofile 524288
+* soft nproc 131072
+* hard nproc 131072
+* soft core unlimited
+EOF
+ulimit -n 65536 65536
+ 
+
+gpadmin 계정 생성
+
+# Add Group and User for WarehousePG
+sudo groupadd gpadmin
+sudo useradd gpadmin -g gpadmin -m
+#sudo usermod -aG wheel gpadmin
+echo "gpadmin" | sudo passwd --stdin "gpadmin"
+ 
+hosts 화일 수정, ( 아래는 예시)
+
+```
+sudo tee -a /etc/hosts << EOF
+10.0.27.155 whpg-m
+10.0.23.136 whpg-sm
+10.0.25.24 whpg-s1
+10.0.31.198 whpg-s2
+EOF
+```
+ 주의 : 모든 node의 hostname을 /etc/hosts의 이름과 동일하게 설정해야 함.
+
+5.gpadmin 계정의 암호없이 노드간 접속이 되도록 설정
+
+# ssh-keygen at "gpadmin" user
+# .ssh/id_rsa.pub 의 내용을 복사헤서 다른 모든 노드의 .ssh/authorized_keys 에 추가.
+rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
+ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+scp -r .ssh whpg-sm:/home/gpadmin
+scp -r .ssh whpg-s1:/home/gpadmin
+scp -r .ssh whpg-s2:/home/gpadmin
+## ssh 접속 문제가 있을 때.
+sudo sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication yes/" /etc/ssh/sshd_config
+sudo sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" /etc/ssh/sshd_config
+sudo systemctl restart sshd
+ 
+6.WarehousePG rpm 모든 노드에 복사
+
+## 마스트 노드에 다른 모든 노드로 패키지 복사
+scp -r whpg7_redhat9 gpadmin@whpg-sm:/home/gpadmin
+scp -r whpg7_redhat9 gpadmin@whpg-s1:/home/gpadmin
+scp -r whpg7_redhat9 gpadmin@whpg-s2:/home/gpadmin
+## WHPG 7 설치. 
+sudo dnf install whpg7_redhat9/*.rpm -y 
+## 폴더 오너/그룹 변경
+sudo chown -R gpadmin:gpadmin /usr/local/greenplum*
+sudo chown -R gpadmin:gpadmin /usr/local/edb-whpg7-pxf
+## PXF 설치시 Symbolic link 생성.
+ln -s /usr/local/edb-whpg7-pxf /usr/local/greenplum-db/pxf
+
+7.WarehousePG DB 폴더 생성 및 권한 설정
+
+## 마스트/스탠바이 마스트 노드의 폴더 새성 
+sudo mkdir -p /data/coordinator
+sudo chown -R gpadmin:gpadmin /data/coordinator
+## 세그먼드 노드의 폴더 생성
+## 파일시스템이 2개이면 /data1, /data2 에 각각 primary, mirror 폴더 생성 
+sudo mkdir -p /data/primary
+sudo mkdir -p /data/mirror
+sudo chown -R gpadmin:gpadmin /data/primary 
+sudo chown -R gpadmin:gpadmin /data/mirror 
+
+8.gpadmin 계정 환경 설정.
+
+## Shell 환경 설정을 위한 준비.
+sudo tee -a /home/gpadmin/.bashrc  << EOF
+source /usr/local/greenplum-db/greenplum_path.sh
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-17.0.16.0.8-2.el9.x86_64
+export PATH=$PATH:$PXF_HOME/bin
+export PATH=$PXF_HOME/bin:$PATH
+export PXF_HOME=/usr/local/greenplum-db/pxf
+export PXF_BASE=/home/gpadmin/pxf-base
+export PATH=$PXF_HOME/bin:$PATH
+export COORDINATOR_DATA_DIRECTORY=/data/coordinator/gpseg-1 
+EOF
+
+9.WarehousePG DB 초기화.
+
+## gpinitsystem_config 생성 
+mkdir -p gpconfigs
+sudo tee -a /home/gpadmin/gpconfigs/gpinitsystem_config << EOF
+sudo tee -a /tmp/gpinitsystem_config << EOF
+# FILE NAME: gpinitsystem_config
+# Configuration file needed by the gpinitsystem
+SEG_PREFIX=gpseg
+PORT_BASE=6000
+declare -a DATA_DIRECTORY=(/data/primary /data/primary )
+#declare -a DATA_DIRECTORY=(/data1/primary /data1/primary /data2/primary /data2/primary)
+COORDINATOR_HOSTNAME=whpg-m
+#COORDINATOR_HOSTNAME=whpg-m-int
+COORDINATOR_DIRECTORY=/data/coordinator
+COORDINATOR_PORT=5432
+TRUSTED_SHELL=ssh
+ENCODING=UNICODE
+#MIRROR_PORT_BASE=7000
+#declare -a MIRROR_DATA_DIRECTORY=(/data/mirror /data/mirror )
+#declare -a MIRROR_DATA_DIRECTORY=(/data1/mirror /data1/mirror /data2/mirror /data2/mirror)
+DATABASE_NAME=whpg
+MACHINE_LIST_FILE=/home/gpadmin/gpconfigs/hostfile_gpinitsystem
+EOF
+# segment 노드 리스트 작성
+sudo tee -a /home/gpadmin/gpconfigs/hostfile_gpinitsystem << EOF
+whpg-s1
+whpg-s2
+EOF
+## WHPG DB Cluster 초기화..
+source /usr/local/greenplum-db/greenplum_path.sh
+gpinitsystem -c gpconfigs/gpinitsystem_config -h gpconfigs/hostfile_gpinitsystem –n C –m 200 -S
+## WHPG DB 확인
+gpstate
+ 
+Standny Master 설정, DB 삭제, 등.
+
+## Standny Master 설정 
+gpinitstandby -s whpg-sm -P 5432
+## Standny Master 설정 확인
+gpstate -f
+## WHPG DB Cluster 완전 삭제
+gpdeletesystem -d $COORDINATOR_DATA_DIRECTORY -f
+## startup master only
+gpstart -m
+psql "dbname=postgres user=gpadmin options='-c gp_session_role=utility'"
+## startup with detail log
+gpstart -av
+ 
+몇가지 확인 SQL
+
+SHOW gp_interconnect_type;
+select * from pg_extension;
+select content, role, port, hostname, address from gp_segment_configuration;
+connect whpg;
+CREATE OR REPLACE FUNCTION generate_random_string_md5(length INT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN SUBSTRING(MD5(RANDOM()::text || CLOCK_TIMESTAMP()::text), 1, length);
+END;
+$$ LANGUAGE plpgsql VOLATILE; 
+SELECT generate_random_string_md5(10);
+CREATE TABLE test_table (
+    col1 character varying(82),
+    col2 character varying(10),
+    col3 character varying(82),
+    col4 character varying(50),
+    start_datetime integer,
+    gploaded_time timestamp without time zone
+)
+WITH (appendonly=true) DISTRIBUTED BY (col1);
+INSERT INTO test_table values('00001','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00002','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00003','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00004','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values(generate_random_string_md5(10),'col2col2','col3col3', 'col4col4col4col4',2019384,now());
+CREATE TABLE rtitrans (
+    imsi character varying(82),
+    subscriber_mccmnc character varying(10),
+    msisdn character varying(82),
+    imei character varying(50),
+    called_digits character varying(50),
+    start_datetime integer,
+    end_datetime integer,
+    first_cell_lac integer,
+    first_cell_idsac integer,
+    current_cell_lac integer,
+    current_cell_idsac integer,
+    dr_type integer,
+    status character varying(50),
+    ingest_time bigint,
+    processed_time bigint,
+    export_time bigint,
+    extra_col text,
+    gploaded_time timestamp without time zone
+)
+WITH (appendonly=true) DISTRIBUTED BY (imsi);
+ 

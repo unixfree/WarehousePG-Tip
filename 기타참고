@@ -1,0 +1,194 @@
+vi .bashrc
+source /usr/local/greenplum-db/greenplum_path.sh
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-17.0.16.0.8-2.el9.x86_64
+export PATH=$PATH:$PXF_HOME/bin
+
+export PXF_HOME=/usr/local/greenplum-db/pxf
+export PXF_BASE=/home/gpadmin/pxf-base
+
+export COORDINATOR_DATA_DIRECTORY=/data/coordinator/gpseg-1
+export MASTER_DATA_DIRECTORY=/data/coordinator/gpseg-1
+
+export PGDATABASE=postgres
+export PGHOST=whpg-m
+export PGPORT=5432
+export PGUSER=gpadmin
+export PGPASSWORD=gpadmin
+
+$ gpinitsystem -c gpconfigs/gpinitsystem_config -h gpconfigs/hostfile_gpinitsystem –n C –m 200 -S
+
+$ export COORDINATOR_DATA_DIRECTORY=/data/master/gpseg-1
+$ gpstate 
+
+$ gpinitstandby -s whpg-sm
+$ gpinitstandby -s whpg-s
+
+$ gprecoverseg  or  gprecoverseg -r 
+
+$ gpactivatestandby -d $COORDINATOR_DATA_DIRECTORY
+
+$ gpdeletesystem -d $COORDINATOR_DATA_DIRECTORY -f
+
+# Segment Role 확인 
+select content, role, port, hostname, address from gp_segment_configuration ;
+
+SELECT * FROM pg_available_extensions;
+SELECT * FROM pg_extension;
+
+# Greenplum을 재시작하면서 세그먼트 역할을 선호 역할로 재조정합니다.
+gpstop -r              
+# 모든 세그먼트 인스턴스를 선호 역할로 전환 (Greenplum 6.x 이상에서 사용)
+gprecoverseg -r       
+SELECT extname, extversion FROM pg_extension;
+# parameter 변경
+gpconfig -c log_duration -v on
+gpconfig -c gp_workfile_compress_algorithm -v zlib --masteronly
+gpconfig -c statement_mem -v 512MB
+
+# vector
+sudo dnf install  edb-wpg7-pgvector0
+
+# cbcopy
+cbcopy --with-global-metadata --source-host=127.0.0.1 \
+    --source-port=5432 --source-user=gpadmin \
+    --dest-host=127.0.0.1 --dest-port=5432 \
+    --dest-user=gpadmin --schema=whpg.public \
+    --dest-schema=postgres.public \
+    --truncate
+
+# function 확인
+SELECT p.proname AS function_name,
+         l.lanname AS language_name
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_language l ON p.prolang = l.oid
+   WHERE p.pronamespace IN (SELECT oid FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema')
+     AND p.prokind = 'f'
+     AND p.proname NOT LIKE 'pg_%'
+ORDER BY function_name;
+
+SHOW gp_interconnect_type;
+
+---
+=# select * from pg_stat_activity 
+
+## 프로세스 종료
+=# select  pg_cancel_backend(PID);
+=# select pg_terminate_backend(PID);
+
+--- size of database ----
+SELECT pg_size_pretty(pg_database_size('데이터베이스이름'));
+
+SELECT
+    datname AS database_name,
+    pg_size_pretty(pg_database_size(datname)) AS size
+FROM
+    pg_database
+ORDER BY
+    pg_database_size(datname) DESC; -- 크기가 큰 순서로 정렬
+
+---- check skew ----
+-- 왜곡 계수가 4 이상인 테이블만 조회 
+SELECT s.skcrelname AS table_name, s.skccoeff AS coefficient FROM gp_toolkit.gp_skew_coefficients s
+WHERE s.skccoeff > 4 ORDER BY s.skccoeff DESC;
+
+SELECT gp_segment_id, count(*) AS row_count FROM your_schema.your_table_name
+GROUP BY gp_segment_id ORDER BY gp_segment_id;
+
+-- 특정 테이블의 데이터 쏠림 계수 확인
+SELECT * FROM gp_toolkit.gp_skew_coefficients WHERE skcrelname = '테이블명';
+
+-- 특정 스키마의 모든 테이블 쏠림 확인
+SELECT * FROM gp_toolkit.gp_skew_coefficients WHERE skcschemaname = '스키마명';
+
+-----  분산키 확인 ----
+SELECT a.attname AS distribution_key_column
+FROM gp_distribution_policy p
+JOIN pg_attribute a ON p.localoid = a.attrelid AND a.attnum = ANY(p.attrnums)
+WHERE p.localoid = 'public.warehouse'::regclass;
+
+SELECT n.nspname AS schema_name, c.relname AS table_name,
+    CASE
+        WHEN p.attrnums IS NULL THEN 'DISTRIBUTED RANDOMLY'
+        ELSE 'DISTRIBUTED BY (' || string_agg(a.attname, ', ') || ')'
+    END AS distribution_policy
+FROM pg_class c
+JOIN pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN gp_distribution_policy p ON c.oid = p.localoid
+LEFT JOIN pg_attribute a ON p.localoid = a.attrelid AND a.attnum = ANY(p.attrnums)
+WHERE c.relkind = 'r'              -- 일반 테이블만 조회
+      AND n.nspname = 'public'     -- 특정 스키마 지정
+GROUP BY n.nspname, c.relname, p.attrnums
+ORDER BY n.nspname, c.relname;
+
+--- 
+gpload
+drop table rtitrans_etl4;
+
+CREATE TABLE rtitrans (
+    imsi character varying(82),
+    subscriber_mccmnc character varying(10),
+    msisdn character varying(82),
+    imei character varying(50),
+    called_digits character varying(50),
+    start_datetime integer,
+    end_datetime integer,
+    first_cell_lac integer,
+    first_cell_idsac integer,
+    current_cell_lac integer,
+    current_cell_idsac integer,
+    dr_type integer,
+    status character varying(50),
+    ingest_time bigint,
+    processed_time bigint,
+    export_time bigint,
+    extra_col text,
+    gploaded_time timestamp without time zone
+)
+WITH (appendonly=true) DISTRIBUTED BY (imsi);
+
+=== pxf minoi parquet =====
+
+CREATE EXTERNAL TABLE minio_parquet_cusomer (
+    -- MinIO Parquet 파일의 실제 스키마에 맞게 컬럼 정의
+    -- 데이터 타입은 Parquet의 논리적 타입과 PostgreSQL 타입 매핑 고려
+    c_customer_sk             INTEGER   ,
+    c_customer_id             CHAR(16)  ,
+    c_current_cdemo_sk        INTEGER                       ,
+    c_current_hdemo_sk        INTEGER                       ,
+    c_current_addr_sk         INTEGER                       ,
+    c_first_shipto_date_sk    INTEGER                       ,
+    c_first_sales_date_sk     INTEGER                       ,
+    c_salutation              CHAR(10)                      ,
+    c_first_name              CHAR(20)                      ,
+    c_last_name               CHAR(30)                      ,
+    c_preferred_cust_flag     CHAR(1)                       ,
+    c_birth_day               INTEGER                       ,
+    c_birth_month             INTEGER                       ,
+    c_birth_year              INTEGER                       ,
+    c_birth_country           VARCHAR(20)                   ,
+    c_login                   CHAR(13)                      ,
+    c_email_address           CHAR(50)                      ,
+    c_last_review_date        CHAR(10)                      
+)
+--LOCATION ('pxf://192.168.56.51/pgaa/tpch_sf_1/customer/?PROFILE=s3&SERVER=s3')
+LOCATION ('pxf://192.168.56.51/pgaa/tpch_sf_1/customer/?PROFILE=s3:parquet')
+--ON ANY SEGMENT
+FORMAT 'CUSTOM' (FORMATTER='pxfwritable_import');
+
+
+=== auto vacuum =====
+-- autovacuum 활성화 여부 확인 (기본값: on)
+SHOW autovacuum;
+
+-- 기타 주요 설정 확인
+SELECT name, setting, short_desc
+FROM pg_settings
+WHERE name LIKE 'autovacuum%';
+
+SELECT datname, pid, usename, application_name, query
+FROM pg_stat_activity
+WHERE query LIKE 'autovacuum%';
+
+SELECT gp_segment_id, datname, pid, query
+FROM gp_dist_random('pg_stat_activity')
+WHERE query LIKE 'autovacuum%';

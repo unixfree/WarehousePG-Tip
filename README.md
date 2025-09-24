@@ -31,12 +31,12 @@ https://gpdbkr.blogspot.com/
 10. 노드장애 복구  <br>
    gprecoverseg
 11. 운영관리 <br>
-   > 카달로그 무결성 확인 : gpcheckcat
+   > 카달로그 무결성 확인 : gpcheckcat <br>
      ```
      gpcheckcat -g /home/gpadmin/fix_catalog.sql testdb
      ```
-   > vacuum, analyze, reindex
-   > skew 관리.
+   > vacuum, analyze, reindex <br>
+   > skew 관리. <br>
 11. 자원관리 <br>
     Resource Group
 12. 파라메터 변경. <br>

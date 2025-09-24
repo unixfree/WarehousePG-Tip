@@ -1,6 +1,6 @@
-#WHPG 교육 목차
+# WHPG 교육 목차
 
-##참고 URL
+## 참고 URL
 ```
 https://warehouse-pg.io/docs/7x/
 https://gpdbkr.blogspot.com/

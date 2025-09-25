@@ -244,57 +244,9 @@ psql "dbname=postgres user=gpadmin options='-c gp_session_role=utility'"
 ## startup with detail log
 gpstart -av
  
-몇가지 확인 SQL
-
+## 몇가지 확인 SQL
 SHOW gp_interconnect_type;
-
 select * from pg_extension;
-
 select content, role, port, hostname, address from gp_segment_configuration;
 
-CREATE OR REPLACE FUNCTION generate_random_string_md5(length INT)
-RETURNS TEXT AS $$
-BEGIN
-    RETURN SUBSTRING(MD5(RANDOM()::text || CLOCK_TIMESTAMP()::text), 1, length);
-END;
-$$ LANGUAGE plpgsql VOLATILE; 
-
-SELECT generate_random_string_md5(10);
-CREATE TABLE test_table (
-    col1 character varying(82),
-    col2 character varying(10),
-    col3 character varying(82),
-    col4 character varying(50),
-    start_datetime integer,
-    gploaded_time timestamp without time zone
-)
-WITH (appendonly=true) DISTRIBUTED BY (col1);
-
-INSERT INTO test_table values('00001','col2col2','col3col3', 'col4col4col4col4',2019384,now());
-INSERT INTO test_table values('00002','col2col2','col3col3', 'col4col4col4col4',2019384,now());
-INSERT INTO test_table values('00003','col2col2','col3col3', 'col4col4col4col4',2019384,now());
-INSERT INTO test_table values('00004','col2col2','col3col3', 'col4col4col4col4',2019384,now());
-INSERT INTO test_table values(generate_random_string_md5(10),'col2col2','col3col3', 'col4col4col4col4',2019384,now());
-
-CREATE TABLE rtitrans (
-    imsi character varying(82),
-    subscriber_mccmnc character varying(10),
-    msisdn character varying(82),
-    imei character varying(50),
-    called_digits character varying(50),
-    start_datetime integer,
-    end_datetime integer,
-    first_cell_lac integer,
-    first_cell_idsac integer,
-    current_cell_lac integer,
-    current_cell_idsac integer,
-    dr_type integer,
-    status character varying(50),
-    ingest_time bigint,
-    processed_time bigint,
-    export_time bigint,
-    extra_col text,
-    gploaded_time timestamp without time zone
-)
-WITH (appendonly=true) DISTRIBUTED BY (imsi);
  

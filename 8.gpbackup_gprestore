@@ -1,0 +1,47 @@
+1.DB coordinator 노드에서 백업
+
+1-1. 백업 폴더 생성 및 권한 부여 
+sudo mkdir /data/backup
+ssh whpg-sm sudo mkdir /data/backup
+ssh whpg-s1 sudo mkdir /data/backup
+ssh whpg-s2 sudo mkdir /data/backup
+sudo chown -R gpadmin:gpadmin /data/backup
+ssh whpg-sm sudo chown -R gpadmin:gpadmin /data/backup
+ssh whpg-s1 sudo chown -R gpadmin:gpadmin /data/backup
+ssh whpg-s2 sudo chown -R gpadmin:gpadmin /data/backup
+
+1-2. Source WHPG segment 
+
+whpg=# select * from gp_segment_configuration;
+ dbid | content | role | preferred_role | mode | status | port | hostname | address |          datadir           
+------+---------+------+----------------+------+--------+------+----------+---------+----------------------------
+    1 |      -1 | p    | p              | n    | u      | 5432 | whpg-m   | whpg-m  | /data7/coordinator/gpseg-1
+    2 |       0 | p    | p              | n    | u      | 6000 | whpg-s1  | whpg-s1 | /data7/primary/gpseg0
+    4 |       2 | p    | p              | n    | u      | 6000 | whpg-s2  | whpg-s2 | /data7/primary/gpseg2
+    3 |       1 | p    | p              | n    | u      | 6001 | whpg-s1  | whpg-s1 | /data7/primary/gpseg1
+    5 |       3 | p    | p              | n    | u      | 6001 | whpg-s2  | whpg-s2 | /data7/primary/gpseg3
+
+2. 백업 수행.
+gpbackup --dbname whpg --backup-dir /data/backup --compression-level 5 --leaf-partition-data
+
+3. DB 삭제 후 재 생성.
+
+/data7 -> /data1 과 /data2
+
+4. 신규 DB에서 복구 
+
+4-1. 신규 DB 확인.
+$ psql -d whpg
+whpg=# \l
+                                List of databases
+   Name    |  Owner  | Encoding |   Collate   |    Ctype    |  Access privileges  
+-----------+---------+----------+-------------+-------------+---------------------
+ postgres  | gpadmin | UTF8     | en_US.UTF-8 | en_US.UTF-8 | 
+ template0 | gpadmin | UTF8     | en_US.UTF-8 | en_US.UTF-8 | =c/gpadmin         +
+           |         |          |             |             | gpadmin=CTc/gpadmin
+ template1 | gpadmin | UTF8     | en_US.UTF-8 | en_US.UTF-8 | =c/gpadmin         +
+           |         |          |             |             | gpadmin=CTc/gpadmin
+ whpg      | gpadmin | UTF8     | en_US.UTF-8 | en_US.UTF-8 | 
+
+4-2. Restore
+[gpadmin@whpg-m ~]$ gprestore --backup-dir /data/backup 

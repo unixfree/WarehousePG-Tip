@@ -1,0 +1,92 @@
+## ---- Partition 확인.
+\d+ sales
+
+SELECT partitiontablename, partitionrangestart, partitionrangeend
+FROM pg_partitions
+WHERE tablename = 'sales' AND schemaname = 'public';
+
+## ---- 함수 생성
+CREATE OR REPLACE FUNCTION generate_random_string_md5(length INT)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN SUBSTRING(MD5(RANDOM()::text || CLOCK_TIMESTAMP()::text), 1, length);
+END;
+$$ LANGUAGE plpgsql VOLATILE; 
+
+SELECT generate_random_string_md5(10);
+
+## 테이블 생성 예시1
+CREATE TABLE test_table (
+    col1 character varying(82),
+    col2 character varying(10),
+    col3 character varying(82),
+    col4 character varying(50),
+    start_datetime integer,
+    gploaded_time timestamp without time zone
+)
+WITH (appendonly=true) DISTRIBUTED BY (col1);
+
+INSERT INTO test_table values('00001','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00002','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00003','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values('00004','col2col2','col3col3', 'col4col4col4col4',2019384,now());
+INSERT INTO test_table values(generate_random_string_md5(10),'col2col2','col3col3', 'col4col4col4col4',2019384,now());
+
+## 테이블 생성 예시2
+CREATE TABLE rtitrans (
+    imsi character varying(82),
+    subscriber_mccmnc character varying(10),
+    msisdn character varying(82),
+    imei character varying(50),
+    called_digits character varying(50),
+    start_datetime integer,
+    end_datetime integer,
+    first_cell_lac integer,
+    first_cell_idsac integer,
+    current_cell_lac integer,
+    current_cell_idsac integer,
+    dr_type integer,
+    status character varying(50),
+    ingest_time bigint,
+    processed_time bigint,
+    export_time bigint,
+    extra_col text,
+    gploaded_time timestamp without time zone
+)
+WITH (appendonly=true) DISTRIBUTED BY (imsi);CREATE TABLE sales (
+    sale_id     bigint,
+    sale_date   date,
+    region      text,
+    amount      numeric
+)
+DISTRIBUTED BY (sale_id)  -- 데이터 분산은 분산키로 처리
+PARTITION BY RANGE (sale_date) -- 파티셔닝은 파티션키로 처리
+(
+    PARTITION sales_2025_q1 START ('2025-01-01'::date) INCLUSIVE
+                          END ('2025-04-01'::date) EXCLUSIVE,
+    PARTITION sales_2025_q2 START ('2025-04-01'::date) INCLUSIVE
+                          END ('2025-07-01'::date) EXCLUSIVE,
+    PARTITION sales_2025_q3 START ('2025-07-01'::date) INCLUSIVE
+                          END ('2025-10-01'::date) EXCLUSIVE,
+    PARTITION sales_2025_q4 START ('2025-10-01'::date) INCLUSIVE
+                          END ('2026-01-01'::date) EXCLUSIVE,
+    -- 정의된 범위 밖의 데이터가 들어갈 기본 파티션 (필수 권장)
+    DEFAULT PARTITION others
+);
+
+## 테이블 파티션 추가 
+ALTER TABLE sales ADD PARTITION sales_2026_q1
+    START ('2026-01-01'::date) INCLUSIVE
+    END ('2026-04-01'::date) EXCLUSIVE;
+
+## 테이블 파티션 삭제
+ALTER TABLE sales DROP PARTITION sales_2025_q1;
+
+## DEFAULT 파티션 관리
+ALTER TABLE sales SPLIT DEFAULT PARTITION
+    START ('2026-01-01'::date) INCLUSIVE
+    END ('2026-04-01'::date) EXCLUSIVE
+    INTO (PARTITION sales_2026_q1, DEFAULT PARTITION);
+
+
+

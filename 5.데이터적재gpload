@@ -11,6 +11,7 @@ YAML 제어 파일: 로딩 작업의 모든 규칙을 정의하는 파일
 
 단계별 사용 예시
 1단계: 데이터 파일 및 타겟 테이블 준비
+
 1. 데이터 파일 생성 (user_data.csv)
 쉼표(,)로 구분된 간단한 CSV 파일을 준비합니다.
 
@@ -19,16 +20,19 @@ YAML 제어 파일: 로딩 작업의 모든 규칙을 정의하는 파일
 1,John Doe,john.doe@email.com
 2,Jane Smith,jane.smith@email.com
 3,Peter Jones,peter.jones@email.com
+
 2. Greenplum에 타겟 테이블 생성
 데이터가 들어갈 테이블을 미리 만들어 둡니다.
 
 SQL
 
+DROP TABLE users;
 CREATE TABLE users (
     id INT,
     name TEXT,
     email TEXT
-);
+)
+Distributed by (id);
 2단계: YAML 제어 파일 작성 (load_users.yml)
 로딩 작업을 정의하는 YAML 파일을 작성합니다. 이 파일이 gpload의 핵심입니다.
 
@@ -59,29 +63,21 @@ GPLOAD:
    OUTPUT:
      - TABLE: public.users
      - MODE: insert # 데이터를 추가하는 모드
+
 YAML 파일 주요 항목 설명:
 DATABASE, USER, HOST, PORT: Greenplum 접속 정보
 
 INPUT:
-
 FILE: 로딩할 데이터 파일의 절대 경로를 지정합니다.
-
 COLUMNS: 데이터 파일의 각 열이 테이블의 어떤 컬럼과 타입에 매핑되는지 정의합니다.
-
 FORMAT: 데이터 파일의 형식 (csv 또는 text).
-
 DELIMITER: 구분자 (CSV의 경우 ,).
 
 OUTPUT:
-
 TABLE: 데이터가 적재될 테이블 이름 (스키마명.테이블명).
-
 MODE: 데이터 적재 방식.
-
 insert: 데이터를 추가합니다.
-
 update: 기존 데이터를 업데이트합니다. (MATCH_COLUMNS, UPDATE_COLUMNS 필요)
-
 merge: 데이터가 있으면 업데이트, 없으면 추가합니다. (MATCH_COLUMNS, UPDATE_COLUMNS 필요)
 
 3단계: gpload 실행

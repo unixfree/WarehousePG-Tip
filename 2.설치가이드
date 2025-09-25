@@ -1,5 +1,8 @@
 WarehousePG 설치 가이드
 
+https://warehouse-pg.io/docs/7x/install_guide/config_os.html
+https://warehouse-pg.io/docs/7x/install_guide/install_whpg.html
+
 지원 OS
 Red Hat Enterprise Linux 64-bit 8.7 or later
 Oracle Linux 64-bit 8.7 or later, using the Red Hat Compatible Kernel (RHCK) 

@@ -27,22 +27,23 @@ https://gpdbkr.blogspot.com/
    pxf 
 8. TPC-DS 수행 <br>
 9. 백업/복구 <br>
-   gpbackup/gprestore
-10. 노드장애 복구  <br>
-    gprecoverseg  <br>
-11. 운영관리 <br>
+   gpbackup/gprestore <br>
+11. 노드장애 복구  <br>
+   마스트(Coordinator) 노드 HA : https://github.com/unixfree/whpg_coordinator_ha <br>
+   세그먼트(Segment) 노드 HA : gprecoverseg -F(full) / -r(role change) <br>
+12. 운영관리 <br>
     카달로그 무결성 확인 <br>
     ```gpcheckcat -g /home/gpadmin/fix_catalog.sql testdb``` <br>
    vacuum, analyze, reindex <br>
    skew 관리. <br>
-12. 자원관리 <br>
+13. 자원관리 <br>
     Resource Group
-13. 파라메터 변경. <br>
+14. 파라메터 변경. <br>
     ```gpconfig -s max_connections``` <br>
     ```gpconfig -c statement_timeout -v 600000``` <br>
     ```gpconfig -c work_mem -v "256MB"``` <br>
-14. Array, ROW_NUMBER, RANK,CTAS, Replication Table 예시 <br>
-15. PL/R, PL/python 예시 <br>
-16. Madlib 예시 <br>
+15. Array, ROW_NUMBER, RANK,CTAS, Replication Table 예시 <br>
+16. PL/R, PL/python 예시 <br>
+17. Madlib 예시 <br>
 99. 기타 <br>
     hint

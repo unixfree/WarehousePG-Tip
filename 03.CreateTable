@@ -74,6 +74,66 @@ PARTITION BY RANGE (sale_date) -- 파티셔닝은 파티션키로 처리
     DEFAULT PARTITION others
 );
 
+## 결합 파티션 테이블 생성 (Range – List 이중 파티션)
+CREATE TABLE sales (trans_id int, date date, amount decimal(9,2), region text) 
+DISTRIBUTED BY (trans_id)
+PARTITION BY RANGE (date)
+SUBPARTITION BY LIST (region)
+SUBPARTITION TEMPLATE
+( SUBPARTITION usa VALUES ('usa'), 
+  SUBPARTITION asia VALUES ('asia'), 
+  SUBPARTITION europe VALUES ('europe'), 
+  DEFAULT SUBPARTITION other_regions)
+  (START (date '2011-01-01') INCLUSIVE
+   END (date '2012-01-01') EXCLUSIVE
+   EVERY (INTERVAL '1 month'), 
+   DEFAULT PARTITION outlying_dates );
+
+## 결합 파티션 테이블 확인
+psql
+\dt *.sales*
+
+## Range Partition 생성
+CREATE TABLE measurement (
+    city_id         int not null,
+    logdate         date not null,
+    peaktemp        int,
+    unitsales       int )
+DISTRIBUTED BY (city_id)
+PARTITION BY RANGE (logdate);
+
+CREATE TABLE measurement_y2021m01 PARTITION OF measurement
+  FOR VALUES FROM ('2021-01-01') TO ('2021-02-01');
+
+CREATE TABLE measurement_y2021m02 PARTITION OF measurement
+  FOR VALUES FROM ('2021-02-01') TO ('2021-03-01');
+
+CREATE TABLE measurement_y2021m03 PARTITION OF measurement
+  FOR VALUES FROM ('2021-03-01') TO ('2021-04-01');
+...
+CREATE TABLE measurement_y2021m11 PARTITION OF measurement
+  FOR VALUES FROM ('2021-11-01') TO ('2021-12-01');
+
+## List Partition 생성
+CREATE TABLE listpart (id int, rank int, year int, color char(1), count int) 
+  DISTRIBUTED BY (id)
+  PARTITION BY LIST (color);
+
+CREATE TABLE listpart_red PARTITION OF listpart FOR VALUES IN ('r');
+CREATE TABLE listpart_green PARTITION OF listpart FOR VALUES IN ('g');
+CREATE TABLE listpart_blue PARTITION OF listpart FOR VALUES IN ('b');
+CREATE TABLE listpart_other PARTITION OF listpart DEFAULT;
+
+## Hash Partition 생성
+CREATE TABLE hpt (a int, b int, c text) PARTITION BY HASH(c);
+
+CREATE TABLE hpt_p1 PARTITION OF hpt FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE hpt_p2 PARTITION OF hpt FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE hpt_p3 PARTITION OF hpt FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+
+## Partition 확인
+\dt+ hpt*
+
 ## 테이블 파티션 추가 
 ALTER TABLE sales ADD PARTITION sales_2026_q1
     START ('2026-01-01'::date) INCLUSIVE

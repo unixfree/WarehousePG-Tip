@@ -1,0 +1,199 @@
+
+1. 선형 회귀 모델 학습 및 예측 (madlib.linregr)
+
+1-1. 예제 테이블 생성
+               CREATE TABLE regr_example (
+                  id INT,
+                  y INT,
+                  x1 INT,
+                  x2 INT
+               );
+
+1-2. 데이터 삽입
+               INSERT INTO regr_example VALUES 
+                  (1, 5, 2, 3),
+                  (2, 10, 7, 2),
+                  (3, 6, 4, 1),
+                  (4, 8, 3, 4);
+
+1-3. 모델 생성 (madlib.linregr_train)
+선형 회귀 모델 함수를 사용해 regr_example_model 테이블에 회귀 모델을 생성합니다.
+               SELECT madlib.linregr_train (
+                  'regr_example',         -- 학습 데이터 테이블
+                  'regr_example_model',   -- 출력(모델) 테이블
+                  'y',                    -- 종속변수
+                  'ARRAY[1, x1, x2]'      -- 독립변수 (1은 절편항)
+               );
+
+1. 선형 회귀 모델 학습 및 예측 (madlib.linregr)
+
+1-4 모델 결과 확인
+               SELECT * FROM regr_example_model;
+
+1-5 예측 및 잔차(residual) 계산
+선형 회귀 모델 함수를 이용해 실제값(y)과 예측값(predict)의 차이를 확인합니다.
+               SELECT regr_example.*, 
+        madlib.linregr_predict ( ARRAY[1, x1, x2], m.coef ) as predict,
+        y - madlib.linregr_predict ( ARRAY[1, x1, x2], m.coef ) as residual
+FROM regr_example, regr_example_model m;
+
+2. 연관 규칙 분석 (madlib.assoc_rules)
+
+2-1. 테스트 테이블 생성 및 데이터 삽입
+               CREATE TABLE test_data (
+                  trans_id INT,
+                  product TEXT
+               );
+
+               INSERT INTO test_data VALUES 
+                  (1, 'beer'),
+                  (1, 'diapers'),
+                  (1, 'chips'),
+                  (2, 'beer'),
+                  (2, 'diapers'),
+                  (3, 'beer'),
+                  (3, 'diapers'),
+                  (4, 'beer'),
+                  (4, 'chips'),
+                  (5, 'beer'),
+                  (6, 'beer'),
+                  (6, 'diapers'),
+                  (6, 'chips'),
+                  (7, 'beer'),
+                  (7, 'diapers');
+
+2-2 연관 규칙 분석 함수 실행
+               SELECT * FROM madlib.assoc_rules (
+                  0.40,          -- 최소 지지도 (support)
+                  0.75,          -- 최소 신뢰도 (confidence)
+                  'trans_id',    -- 거래 ID 컬럼
+                  'product',     -- 상품 컬럼
+                  'test_data',   -- 원본 테이블
+                  'public',      -- 출력 스키마
+                  false          -- 처리 상세 로그 표시 여부
+               );
+
+2. 연관 규칙 분석 (madlib.assoc_rules)
+
+2-3. 연관 규칙 확인
+SELECT pre, post, support
+FROM assoc_rules
+ORDER BY support DESC;
+
+
+3. 나이브 베이즈 분류 (Naive Bayes) 예제 1 — 단순 숫자형 속성
+
+3-1. 테이블 생성 및 데이터 삽입
+실제 환경에서는 더 많은 학습 데이터가 있을수록 모델 정확도가 향상됩니다.
+               CREATE TABLE class_example (
+                  id int, class int, attributes int[]);
+               INSERT INTO class_example VALUES
+                  (1, 1, '{1, 2, 3}'),
+                  (2, 1, '{1, 4, 3}'),
+                  (3, 2, '{0, 2, 2}'),
+                  (4, 1, '{1, 2, 1}'),
+                  (5, 2, '{1, 2, 2}'),
+                  (6, 2, '{0, 1, 3}');
+
+
+3-2. 모델 학습 (madlib.create_nb_prepared_data_tables)
+               SELECT * FROM madlib.create_nb_prepared_data_tables (
+                  'class_example',               -- 학습 테이블
+                  'class',                           -- 종속(클래스) 컬럼
+                  'attributes',                     -- 속성 컬럼
+                  3,                                 -- 속성 개수
+                  'example_feature_probs',    -- 출력: 속성 확률 테이블
+                  'example_priors'               -- 출력: 클래스 사전확률 테이블
+               );
+
+
+3-3. 분류 대상 데이터 생성
+               CREATE TABLE class_example_topredict (
+                  id INT,
+                  attributes INT[]
+               );
+
+               INSERT INTO class_example_topredict VALUES 
+                  (1, '{1, 3, 2}'),
+                  (2, '{4, 2, 2}'),
+                  (3, '{2, 1, 1}');
+
+3-4. 분류 결과 뷰 생성
+madlib.create_nb_probs_view() 함수로 예측 결과를 계산할 뷰를 생성합니다.
+               SELECT madlib.create_nb_probs_view (
+                  'example_feature_probs',    -- 속성 확률 테이블
+                  'example_priors',              -- 클래스 사전확률 테이블
+                  'class_example_topredict',   -- 예측할 데이터
+                  'id',                               -- 키 컬럼
+                  'attributes',                     -- 속성 컬럼
+                  3,                                 -- 속성 개수
+                  'example_classified'          -- 출력 뷰 이름
+               );
+
+3-5. 예측 결과 조회
+               SELECT * FROM example_classified;
+
+4. 나이브 베이즈 분류 (Naive Bayes) 예제 2 — 날씨 데이터
+
+4-1 테이블 생성 및 데이터 삽입
+               CREATE TABLE weather_example (
+                  day int,
+                  play int,
+                  attrs int[]
+               );
+
+               INSERT INTO weather_example VALUES
+                  ( 2, 0, '{1,1,1,1}'), -- sunny, hot, high, strong
+                  ( 4, 1, '{3,2,1,2}'), -- rain, mild, high, weak
+                  ( 6, 0, '{3,3,2,1}'), -- rain, cool, normal, strong
+                  ( 8, 0, '{1,2,1,2}'), -- sunny, mild, high, weak
+                  (10, 1, '{3,2,2,2}'), -- rain, mild, normal, weak
+                  (12, 1, '{2,2,1,1}'), -- etc.
+                  (14, 0, '{3,2,1,1}'),
+                  ( 1, 0, '{1,1,1,2}'),
+                  ( 3, 1, '{2,1,1,2}'),
+                  ( 5, 1, '{3,3,2,2}'),
+                  ( 7, 1, '{2,3,2,1}'),
+                  ( 9, 1, '{1,3,2,2}'),
+                  (11, 1, '{1,2,2,1}'),
+                  (13, 1, '{2,1,2,2}');
+
+4-2. 모델 학습
+               SELECT madlib.create_nb_prepared_data_tables (
+                  'weather_example',  -- 학습 테이블
+                  'play',                  -- 종속(클래스) 컬럼
+                  'attrs',                  -- 속성 컬럼
+                  4,                       -- 속성 개수
+                  'weather_probs',    -- 속성 확률 출력 테이블
+                  'weather_priors'     -- 클래스 사전확률 출력 테이블
+               );
+
+4-3. 속성 확률 테이블 조회
+               SELECT * FROM weather_probs;
+
+4-4. 분류 대상 데이터 생성
+               CREATE TABLE t1 (
+                  id integer,
+                  attributes integer[]);
+
+               insert into t1 values 
+                  (1, '{1, 2, 1, 1}'),
+                  (2, '{3, 3, 2, 1}'),
+                  (3, '{2, 1, 2, 2}'),
+                  (4, '{3, 1, 1, 2}');
+
+4-6. 분류 결과 생성
+               SELECT madlib.create_nb_classify_view (
+                  'weather_probs',       -- 속성 확률 테이블
+                  'weather_priors',       -- 클래스 사전확률 테이블
+                  't1',                       -- 분류할 데이터 테이블
+                  'id',                       -- 키 컬럼
+                  'attributes',             -- 속성 컬럼
+                  4,                         -- 속성 개수
+                  't1_out'                  -- 출력 테이블 이름
+               );
+
+4-7. 주어진 날씨 조건을 분석하여 아이들이 나갈 수 있을 지 예측
+               SELECT * FROM t1_out ORDER BY key;
+
+

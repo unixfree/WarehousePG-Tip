@@ -14,3 +14,42 @@ gpbackup --dbname tpchc --backup-dir /backup --leaf-partition-data --with-stats 
 5. DB 테이블 단위 백업
 gpbackup --dbname tpchc --backup-dir /backup --leaf-partition-data --with-stats --jobs 2 --include-table tpch.orders  > /data/backup/table_$(date +%m%d%H%M).log 2>&1 &
 
+6. 특정 타임스탬프의 백업본 전체 복원
+gprestore --timestamp 20241125120000
+
+7. # 'original_db'의 백업을 'new_db'로 복원
+gprestore --timestamp 20241125120000 --redirect-db new_db
+
+8.public 스키마의 sales 테이블만 복원
+gprestore --timestamp 20241125120000 --include-table public.sales
+
+9. 여러 테이블 복원
+gprestore --timestamp 20241125120000 --include-table public.sales --include-table hr.employee
+
+10. finance 스키마에 속한 모든 객체 복원
+gprestore --timestamp 20241125120000 --include-schema finance
+
+11.tables_to_restore.txt 파일에 테이블 목록이 한 줄에 하나씩 있어야 함
+gprestore --timestamp 20241125120000 --include-table-file ./tables_to_restore.txt
+
+12. DDL 만 복원
+gprestore --timestamp 20241125120000 --metadata-only
+
+13. 데이터만 복원
+gprestore --timestamp 20241125120000 --data-only
+
+14. 에러 무시하고 진행
+gprestore --timestamp 20241125120000 --on-error-continue
+
+15. 외부 스토리지(S3 등)에서 복원
+gprestore --timestamp 20241125120000 --plugin-config /home/gpadmin/s3_config.yaml
+
+16. 의존성 문제 해결하면서 복원
+gprestore --timestamp 20241125120000 --with-globals
+
+17. 4개의 병렬 작업으로 메타데이터 복원 수행
+gprestore --timestamp 20241125120000 --jobs 4
+
+
+
+

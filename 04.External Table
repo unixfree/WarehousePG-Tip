@@ -1,3 +1,4 @@
+![External Table Architecture](png/externaltable_architecture.png)
 
 drop table rtitrans_etl4;
 

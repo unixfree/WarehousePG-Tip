@@ -1,0 +1,16 @@
+1.백업 디렉토리 생성 혹은 NAS/S3 연결.
+All
+=> mkdir /data/backup
+
+2.메타데이터만 백업 (데이터 제외)		
+gpbackup --dbname tpchc --backup-dir /data/backup_metadata_$(date +%m%d%H%M) --metadata-only --jobs 2
+
+3. 증분 백업
+gpbackup --dbname postgres --backup-dir /data1/backup/ --leaf-partition-data --incremental --from-timestamp "20251111100952" 
+
+4. DB 스키마 단위 백업		
+gpbackup --dbname tpchc --backup-dir /backup --leaf-partition-data --with-stats --jobs 2 --include-schema tpch  > /data/backup/schema_$(date +%m%d%H%M).log 2>&1 &
+
+5. DB 테이블 단위 백업
+gpbackup --dbname tpchc --backup-dir /backup --leaf-partition-data --with-stats --jobs 2 --include-table tpch.orders  > /data/backup/table_$(date +%m%d%H%M).log 2>&1 &
+

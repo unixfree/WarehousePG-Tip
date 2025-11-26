@@ -88,6 +88,13 @@ ALTER TABLE sales SPLIT DEFAULT PARTITION
     END ('2026-02-01'::date) EXCLUSIVE
     INTO (PARTITION sales_2026_q1, DEFAULT PARTITION);
 
+## 예시: DEFAULT 파티션에서 2024년 1월 분량을 쪼개서 새로운 파티션으로 생성
+ALTER TABLE sales 
+SPLIT DEFAULT PARTITION 
+    START (date '2024-01-01') INCLUSIVE 
+    END (date '2024-02-01') EXCLUSIVE
+    INTO (PARTITION p202401, DEFAULT PARTITION);
+
 ## procudure/function으로 신규 파티션 추가 가능
 ## (개념적인 예시) 다음 달 파티션 추가 함수
 CREATE OR REPLACE FUNCTION add_next_month_partition() RETURNS void AS $$

@@ -1,0 +1,221 @@
+-- 1. Array Table 배열 컬럼을 포함하는 테이블 생성
+-- tags 컬럼을 텍스트 배열(TEXT[]) 타입으로 정의합니다.
+CREATE TABLE products (
+    product_id  SERIAL PRIMARY KEY,
+    product_name VARCHAR(100),
+    tags        TEXT[]
+);
+
+-- 1-2. 배열 데이터 삽입 (INSERT)
+-- ARRAY[] 생성자 구문을 사용하여 데이터를 삽입합니다.
+INSERT INTO products (product_name, tags) VALUES
+('노트북', ARRAY['전자제품', '컴퓨터', '사무용품']),
+('기계식 키보드', ARRAY['전자제품', '컴퓨터', '게이밍', '주변기기']),
+('모니터', ARRAY['전자제품', '컴퓨터', '주변기기']),
+('데스크 의자', ARRAY['가구', '사무용품']);
+
+-- 1-3. 배열 데이터 조회 (SELECT)
+
+-- 1-3-1. 특정 태그를 포함하는 상품 조회
+-- @> 연산자: 왼쪽 배열이 오른쪽 배열의 모든 요소를 포함하는지 확인합니다.
+SELECT product_name, tags
+FROM products
+WHERE tags @> ARRAY['사무용품'];
+
+-- 1-3-2. 배열의 특정 위치에 있는 요소 조회
+-- 배열 인덱스는 1부터 시작합니다.
+SELECT product_name, tags[1] AS first_tag
+FROM products
+WHERE product_name = '노트북';
+
+-- 1-3-3. 배열을 행으로 펼쳐서 조회 (UNNEST)
+-- UNNEST 함수는 배열의 각 요소를 별도의 행으로 만들어 줍니다.
+-- 특정 태그가 몇 개의 상품에 사용되었는지 집계할 때 매우 유용합니다.
+SELECT
+    tag,
+    COUNT(*) AS product_count
+FROM
+    (SELECT UNNEST(tags) AS tag FROM products) AS unnested_tags
+GROUP BY
+    tag
+ORDER BY
+    product_count DESC;
+
+
+--2. UNNEST Array 예시 테이블 생성 및 데이터 삽입
+CREATE TABLE products (
+    product_id  SERIAL PRIMARY KEY,
+    product_name VARCHAR(100),
+    tags        TEXT[]
+);
+
+INSERT INTO products (product_name, tags) VALUES
+('노트북', ARRAY['전자제품', '컴퓨터', '사무용품']),
+('기계식 키보드', ARRAY['전자제품', '컴퓨터', '게이밍', '주변기기']),
+('모니터', ARRAY['전자제품', '컴퓨터', '주변기기']),
+('데스크 의자', ARRAY['가구', '사무용품']);
+
+-- 2-1. UNNEST를 사용한 기본 확장
+-- tags 배열이 어떻게 개별 행으로 펼쳐지는지 보여줍니다.
+SELECT product_name, UNNEST(tags) AS tag
+FROM products;
+
+-- 2-2. UNNEST를 활용한 태그별 상품 수 집계 (가장 일반적인 사용법)
+-- UNNEST로 생성된 가상 테이블을 사용하여 각 태그의 등장 횟수를 계산합니다.
+SELECT
+    tag,
+    COUNT(*) AS product_count
+FROM
+    (SELECT UNNEST(tags) AS tag FROM products) AS unnested_tags
+GROUP BY
+    tag
+ORDER BY
+    product_count DESC, tag;
+
+
+-- 3. string_to_array 예시 테이블 생성 및 데이터 삽입
+-- tags 컬럼이 쉼표로 구분된 단일 TEXT 타입입니다.
+CREATE TABLE products_legacy (
+    product_id  SERIAL PRIMARY KEY,
+    product_name VARCHAR(100),
+    tags_string TEXT
+);
+
+INSERT INTO products_legacy (product_name, tags_string) VALUES
+('노트북', '전자제품,컴퓨터,사무용품'),
+('기계식 키보드', '전자제품,컴퓨터,게이밍,주변기기'),
+('모니터', '전자제품,컴퓨터,주변기기'),
+('데스크 의자', '가구,사무용품');
+
+-- 3-1. string_to_array 함수를 사용하여 문자열을 배열로 변환
+-- tags_string 컬럼을 ','를 기준으로 잘라 TEXT 배열로 만듭니다.
+SELECT
+    product_name,
+    tags_string,
+    string_to_array(tags_string, ',') AS tags_array
+FROM
+    products_legacy;
+
+-- 3-2. 변환된 배열을 UNNEST와 함께 사용하여 집계
+-- string_to_array로 생성된 배열을 바로 UNNEST 함수에 적용하여
+-- 각 태그별 상품 수를 계산합니다.
+SELECT
+    tag,
+    COUNT(*) AS product_count
+FROM
+    (SELECT UNNEST(string_to_array(tags_string, ',')) AS tag FROM products_legacy) AS unnested_tags
+GROUP BY
+    tag
+ORDER BY
+    product_count DESC, tag;
+
+
+-- 4. Greenplum Replicated Table 예시
+-- Replicated Table은 주로 규모가 작고 자주 조회되는 Dimension 테이블에 사용됩니다.
+-- 모든 세그먼트에 테이블 전체가 복제되어, 분산 테이블과의 Join 시 데이터 이동(Broadcast Motion)을 방지하여 성능을 향상시킵니다.
+
+-- 4-1. Replicated Table 생성
+-- 상품 카테고리와 같이 크기가 작고 자주 Join에 사용되는 테이블을 생성합니다.
+-- 'DISTRIBUTED REPLICATED' 구문을 사용하여 테이블을 복제 테이블로 정의합니다.
+CREATE TABLE product_categories (
+    category_id   INT PRIMARY KEY,
+    category_name VARCHAR(50)
+)
+DISTRIBUTED REPLICATED;
+
+-- 4-2. Replicated Table에 데이터 삽입
+-- 데이터는 마스터 노드를 통해 모든 세그먼트 노드에 동일하게 복제됩니다.
+INSERT INTO product_categories VALUES
+(1, '전자제품'),
+(2, '가구'),
+(3, '사무용품'),
+(4, '주변기기');
+
+-- 4-3. 대용량 분산 테이블(Fact Table) 생성
+-- Replicated Table과 Join할 대규모 판매 데이터 테이블을 생성합니다.
+-- 이 테이블은 'transaction_id'를 기준으로 데이터가 분산됩니다.
+CREATE TABLE sales (
+    transaction_id  BIGINT,
+    product_id      INT,
+    sale_category_id INT, -- 카테고리 ID (Join Key)
+    sale_amount     NUMERIC(10, 2)
+)
+DISTRIBUTED BY (transaction_id);
+
+-- 대용량 샘플 데이터 삽입 (예시)
+INSERT INTO sales SELECT g, g%100, g%4+1, g*100 FROM generate_series(1, 1000000) g;
+ANALYZE sales;
+ANALYZE product_categories;
+
+-- 4. Replicated Table을 활용한 Join 쿼리 실행
+-- 대용량 sales 테이블과 작은 product_categories 테이블을 Join합니다.
+-- product_categories가 모든 세그먼트에 복제되어 있으므로,
+-- Join을 위해 sales 데이터를 다른 세그먼트로 이동시킬 필요가 없습니다.
+-- EXPLAIN 명령어로 실행 계획을 보면 Broadcast Motion이 발생하지 않는 것을 확인할 수 있습니다.
+EXPLAIN SELECT
+    pc.category_name,
+    SUM(s.sale_amount) AS total_sales
+FROM
+    sales s
+JOIN
+    product_categories pc ON s.sale_category_id = pc.category_id
+GROUP BY
+    pc.category_name
+ORDER BY
+    total_sales DESC;
+
+
+-- 5. ROW_NUMBER, RANK, MAX, MIN OVER() 사용 예시 테이블 생성
+CREATE TABLE employee_sales (
+    employee_id INT,
+    employee_name VARCHAR(50),
+    department VARCHAR(50),
+    sales_amount NUMERIC(10, 2)
+) DISTRIBUTED RANDOMLY;
+
+-- 샘플 데이터 삽입
+INSERT INTO employee_sales VALUES
+(101, '김철수', '영업1팀', 8500.00),
+(102, '이영희', '영업1팀', 9200.00),
+(103, '박대리', '영업1팀', 8500.00), -- 김철수와 판매 실적 동일 (동점자)
+(104, '최과장', '영업1팀', 7800.00),
+(201, '정사원', '영업2팀', 9500.00),
+(202, '윤주임', '영업2팀', 9800.00),
+(203, '홍길동', '영업2팀', 8200.00);
+
+-- 윈도우 함수를 사용한 쿼리
+SELECT
+    employee_name,
+    department,
+    sales_amount,
+    -- 각 부서(department) 내에서 판매 실적(sales_amount)이 높은 순으로 순번 매기기
+    ROW_NUMBER() OVER(PARTITION BY department ORDER BY sales_amount DESC) AS row_num,
+    
+    -- 각 부서 내에서 판매 실적 순위 매기기 (동점자는 같은 순위, 다음 등수는 건너뜀)
+    RANK() OVER(PARTITION BY department ORDER BY sales_amount DESC) AS sales_rank,
+    
+    -- 각 부서 내의 최고 판매 실적
+    MAX(sales_amount) OVER(PARTITION BY department) AS dept_max_sales,
+    
+    -- 각 부서 내의 최저 판매 실적
+    MIN(sales_amount) OVER(PARTITION BY department) AS dept_min_sales
+FROM
+    employee_sales
+ORDER BY
+    department, sales_rank;
+
+-- 6. CTAS 압축 임시 Table 생성
+CREATE TEMPORARY TABLE temp_sales_compressed
+WITH (
+    APPENDOPTIMIZED=TRUE,
+    ORIENTATION=COLUMN,
+    COMPRESSTYPE=ZLIB,
+    COMPRESSLEVEL=5
+)
+AS
+SELECT *
+FROM public.sales
+WHERE sale_date >= '2024-01-01'
+DISTRIBUTED RANDOMLY;
+
+

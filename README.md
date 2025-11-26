@@ -41,7 +41,8 @@ https://gpdbkr.blogspot.com/
     ```gpconfig -s max_connections``` <br>
     ```gpconfig -c statement_timeout -v 600000``` <br>
     ```gpconfig -c work_mem -v "256MB"``` <br>
-14. Array 예시 <br>
-15. Madlib 예시 <br>
+14. Array, ROW_NUMBER, RANK,CTAS, Replication Table 예시 <br>
+15. PL/R, PL/python 예시 <br>
+16. Madlib 예시 <br>
 99. 기타 <br>
     hint

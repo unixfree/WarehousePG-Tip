@@ -1,0 +1,68 @@
+1. 테이블 생성시 고려사항
+  a) 분산키 적용
+     > DISTRIBUTED BY (컬럼) 구문을 사용해 분산 키를 명시.
+     > 분산도가 높은 컬럼.
+     > 조인 최적화: 자주 조인되는 대형 테이블의 경우, 조인 키를 분산 키로 사용 권장
+     > WHPG ver7 인 경우, PK/UK를 사용했으면 PK나, PK key 중 일부.
+     > Random 분산: 분산 키를 정하기 어렵거나, 작은 테이블(Dimension Table) 
+  b) 파티션 적용
+    > 파티션 키 선택: 쿼리의 WHERE 절에서 자주 필터링되는 컬럼 (예: date, month, year)
+    > 파티션 수: 너무 많은 파티션은 관리 오버헤드를 유발하므로, 테이블당 300개 미만을 권장(예: 월별 파티션, 일별 파티션 등)
+    > Range 파티션 선호: Range Partition을 기본으로 권장
+    > Default 파티션 사용 지양: DEFAULT PARTITION을 사용하면 쿼리가 항상 이 파티션을 스캔하여 성능 저하를 유발할 수 있습니다.
+  c) Replication 테이블 적용.
+    > DISTRIBUTED REPLICATED;
+    > 크기가 작은 차원 테이블(Dimension Table): 일반적으로 수만~수십만 행 이하의 작은 테이블.
+    > 자주 조인되는 테이블: 대형 Fact 테이블과 매우 자주 조인되는 테이블.
+    > 모든 segment에 데이블 복제, Join시 재분산 방지
+  d) 컬럼나 적용.
+    > WITH (appendonly=true, orientation=column) 
+    > Fact 테이블, 컬럼수가 많은 경우 
+  e) 압축 적용.
+    > WITH (
+      appendonly=true,        -- Append-Only: 대량 로딩에 최적화
+      orientation=column,     -- Column-Oriented Storage: 분석에 최적화
+      compresstype=zlib,      -- 압축 타입
+      compresslevel=5         -- 압축 레벨 (5 혹은 7 권장)
+      )
+   >압축 적용시, 디스크 IO 량을 줄려, 성능 향상
+
+2. 인덱스 생성
+
+3. 통계 정보 현행화 
+  > ANALYZE table_name;
+  > 데이터 적재 혹은 대량 변경 후
+
+4. 파라메터 적용
+파라미터
+권장                           설정                                  설명
+gp_vmem_protect_limit        호스트 RAM에 맞게 설정          호스트별 최대 메모리 한도. 프로세스 전체가 사용할 수 있는 메모리 합계입니다. 호스트 RAM의 70~80%로 설정하는 것이 일반적입니다. 이 값을 넘어서면 OOM(Out of Memory) 방지를 위해 쿼리가 취소됩니다.
+statement_mem                256MB ~ 1GB                단일 쿼리 실행에 할당되는 기본 메모리. 해시 조인(Hash Join)이나 정렬(Sort)과 같은 메모리 집약적 작업에 사용됩니다. 이 값이 너무 낮으면 디스크 스필(Disk Spill)이 발생하여 성능이 저하됩니다.
+max_statement_mem            2GB ~ 4GB                   statement_mem의 최대 상한선입니다. 쿼리가 자동으로 메모리를 높여 사용할 수 있는 한도를 설정합니다.
+max_connections              100 ~ 300                   마스터에서 허용하는 최대 동시 접속 수. 사용량에 따라 설정합니다.
+max_prepared_transactions    max_connections와 같거나 크게  분산 트랜잭션 처리를 위한 최대 준비된 트랜잭션 수.
+max_files_per_process        1000 이상                    쿼리가 동시에 열 수 있는 파일 핸들 수. 복잡한 쿼리나 대규모 조인에 필요합니다.
+
+5. Optimizer 적용시 고려 사항.
+    > 세션 단위 사용 권장.
+    > EXPLAIN 혹은 EXPLAIN ANALYZE로 Query plan 비교 후 적용.
+  a) ORCA (Optimized Row Column Analytic) 적용 
+    > SET optimizer = on;
+    > 복잡한 쿼리 및 대규모 조인, 3개 이상의 대형 테이블 간의 조인(Multi-way Joins).
+    > 복잡한 WHERE 절 조건, GROUP BY, HAVING 절이 포함된 OLAP(Online Analytical Processing) 쿼리.
+    > 파티셔닝(Partitioning)된 테이블
+    > 컬럼 지향(Column-Oriented) 테이블
+    > 서브쿼리 및 뷰
+    > 자주 사용하는 Query는 Optimizer On/Off 비교 후, 적용.
+  b) GPO (Legacy Optimizer) 사용이 좋은 경우 (예외적 상황)
+    > SET optimizer = off;
+    > 매우 단순한 쿼리., 1~2개의 간단한 조인만 있는 쿼리.
+    > ORCA가 비효율적인 실행 계획을 생성할 때:
+      ORCA가 복잡한 쿼리 최적화에 너무 오랜 시간(수십 초 이상)을 소비하거나, 통계 정보가 부족할 때 비효율적인 계획을 생성할 경우.
+    > 옵티마이저 빌드 시간(Optimization Time)이 쿼리 실행 시간보다 길 때:
+       쿼리 자체가 매우 빨리 끝나는 경우, ORCA가 최적의 실행 계획을 찾는 데 걸리는 시간이 실제 쿼리 실행 시간보다 더 길어지는 비효율이 발생할 수 있음.
+
+6. (필요시) Resource Group 설정.
+
+7. 디스크/네트워크 성능 진단.
+   gpcheckperf -h sdw01 -h sdw02 -d /mount_point -r dsn -S 10G

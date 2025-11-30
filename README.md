@@ -45,5 +45,6 @@ https://gpdbkr.blogspot.com/
 15. Array, ROW_NUMBER, RANK,CTAS, Replication Table 예시 <br>
 16. PL/R, PL/python 예시 <br>
 17. Madlib 예시 <br>
+18. 성능 튜닝 가이드
 99. 기타 <br>
     hint

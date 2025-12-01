@@ -1,3 +1,6 @@
+PL/R 설치 구성.
+TBD....
+
 -- 1. PL/R 중심치 차이 T검정 
 -- 테스트 데이터 테이블 생성
 CREATE TABLE public.lab_results (

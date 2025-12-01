@@ -3,7 +3,60 @@ https://warehouse-pg.io/docs/7x/admin_guide/workload_mgmt_resgroups.html#using-r
 리소스 그룹은 **워크로드 관리(Workload Management)**를 위한 Greenplum의 핵심 기능입니다. 
 특정 사용자 그룹(Role)이 사용할 수 있는 CPU, 메모리, 동시성(동시 실행 쿼리 수)을 제한하여, 중요한 작업이 리소스를 안정적으로 확보하고 시스템 전체의 과부하를 방지하는 역할을 합니다.
 
-시나리오
+Redhat(Rocky) OS 사전 구성.
+
+Cgroup Ver 2. 설정.
+
+## 모든 노드에서 root 계정으로 작업.
+sudo -iu root
+
+dnf install libcgroup-tools libcgroup
+
+vi /etc/systemd/system/gpdb.servive
+[Unit]
+Description=Greenplum Cgroup v2 Configuration Service
+
+[Service]
+#Type=oneshot
+RemainAfterExit=yes
+Type=simple
+WorkingDirectory=/sys/fs/cgroup/gpdb.service
+Delegate=yes
+Slice=-.slice
+ 
+# set hierarchies only if cgroup v2 mounted
+ExecCondition=bash -c '[ xcgroup2fs = x$(stat -fc "%%T" /sys/fs/cgroup) ] || exit 1'
+ExecStartPre=bash -ec '\
+        mkdir -p /sys/fs/cgroup/gpdb ;     chown -R gpadmin:gpadmin /sys/fs/cgroup/gpdb; \
+        mkdir -p /sys/fs/cgroup/gpdb.service ; chown -R gpadmin:gpadmin /sys/fs/cgroup/gpdb.service; \
+        chown -R gpadmin:gpadmin .; chmod a+w ../cgroup.procs; mkdir -p helper.scope; \
+        chmod a+w /sys/fs/cgroup/cgroup.procs;'
+ExecStart=sleep infinity
+ExecStartPost=bash -ec "echo $MAINPID > ./helper.scope/cgroup.procs;"
+
+[Install]
+WantedBy=basic.target
+
+systemctl daemon-reload
+systemctl enable gpdb.service
+systemctl start gpdb.service
+systemctl status gpdb.service
+
+mkdir -p /sys/fs/cgroup/gpdb
+chown -R gpadmin:gpadmin /sys/fs/cgroup/gpdb
+chown -R gpadmin:gpadmin /sys/fs/cgroup/gpdb.service
+chmod a+w /sys/fs/cgroup/cgroup.procs 
+echo "+cpuset +io +cpu +memory" | tee -a /sys/fs/cgroup/gpdb.service/cgroup.subtree_control
+echo "+cpuset +io +cpu +memory" | tee -a /sys/fs/cgroup/gpdb/cgroup.subtree_control
+
+grubby --update-kernel=/boot/vmlinuz-$(uname -r) --args="systemd.unified_cgroup_hierarchy=1"
+grubby --update-kernel=/boot/vmlinuz-$(uname -r) --remove-args="systemd.legacy_systemd_cgroup_controller"
+grubby --update-kernel=/boot/vmlinuz-$(uname -r) --args="psi=1" 
+#(옵션) reboot 
+
+sudo systemctl status gpdb.service
+
+테스트 시나리오
 대시보드 조회를 위한 사용자 그룹(dashboard_users)과 데이터 로딩을 위한 ETL 그룹(etl_users)을 나누어 리소스를 할당하는 예시입니다.
 
 0단계: postgresql.conf 설정.
@@ -11,7 +64,7 @@ https://warehouse-pg.io/docs/7x/admin_guide/workload_mgmt_resgroups.html#using-r
 OS에서 Resource Group 사용할 수 있도록 설정 후.
 
 gpconfig -s gp_resource_manager
-gpconfig -c gp_resource_manager -v "group"
+#gpconfig -c gp_resource_manager -v "group"
 gpconfig -c gp_resource_manager -v "group-v2"
 gpstop -r
 

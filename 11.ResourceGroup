@@ -3,7 +3,7 @@ https://warehouse-pg.io/docs/7x/admin_guide/workload_mgmt_resgroups.html#using-r
 리소스 그룹은 **워크로드 관리(Workload Management)**를 위한 Greenplum의 핵심 기능입니다. 
 특정 사용자 그룹(Role)이 사용할 수 있는 CPU, 메모리, 동시성(동시 실행 쿼리 수)을 제한하여, 중요한 작업이 리소스를 안정적으로 확보하고 시스템 전체의 과부하를 방지하는 역할을 합니다.
 
-Redhat(Rocky) OS 사전 구성.
+### Redhat(Rocky) OS 사전 구성.
 
 Cgroup Ver 2. 설정.
 
@@ -56,17 +56,17 @@ grubby --update-kernel=/boot/vmlinuz-$(uname -r) --args="psi=1"
 
 sudo systemctl status gpdb.service
 
-테스트 시나리오
+### 테스트 시나리오
 대시보드 조회를 위한 사용자 그룹(dashboard_users)과 데이터 로딩을 위한 ETL 그룹(etl_users)을 나누어 리소스를 할당하는 예시입니다.
 
 0단계: postgresql.conf 설정.
 
-OS에서 Resource Group 사용할 수 있도록 설정 후.
+## 마스트 노드에서 gpadmin 계정으로 작업.
 
-gpconfig -s gp_resource_manager
-#gpconfig -c gp_resource_manager -v "group"
 gpconfig -c gp_resource_manager -v "group-v2"
 gpstop -r
+gpconfig -s gp_resource_manager 
+
 
 1단계: 리소스 그룹 생성 (CREATE RESOURCE GROUP)
 먼저, 각 그룹의 리소스 제한을 정의하여 생성합니다.
@@ -88,6 +88,9 @@ CREATE RESOURCE GROUP etl_users_rg WITH (
     CONCURRENCY=2
 );
 참고: MEMORY_SHARED_QUOTA 옵션을 사용하여 그룹 내 쿼리들이 공유할 메모리 비율을 정할 수도 있습니다.
+
+-- 설정 확인.
+SELECT * FROM gp_toolkit.gp_resgroup_config;
 
 2단계: 역할(Role) 생성 및 리소스 그룹 할당
 이제 이 리소스 그룹에 속할 사용자(Role)를 만들고, 해당 리소스 그룹을 할당합니다.
@@ -141,4 +144,27 @@ ALTER RESOURCE GROUP exec SET MEMORY_QUOTA 30;
 ALTER RESOURCE GROUP rgroup1 SET CPUSET '1;2,4';
 ALTER RESOURCE GROUP sales SET IO_LIMIT 'tablespace1:wbps=2000,wiops=2000;tablespace2:rbps=2024,riops=2024';
 
-DROP RESOURCE GROUP exec;
+DROP RESOURCE GROUP olap_rg; 
+
+ALTER ROLE bill RESOURCE GROUP olap_rg;
+CREATE ROLE mary RESOURCE GROUP etl_rt;
+
+ALTER ROLE mary RESOURCE GROUP NONE;
+
+SELECT * FROM gp_toolkit.gp_resgroup_config;
+SELECT * FROM gp_toolkit.gp_resgroup_status;
+SELECT * FROM gp_toolkit.gp_resgroup_status_per_host;
+
+SELECT rolname, rsgname FROM pg_roles, pg_resgroup
+WHERE pg_roles.rolresgroup=pg_resgroup.oid;
+
+SELECT * FROM gp_toolkit.gp_resgroup_iostats_per_host;
+SELECT query, rsgname,wait_event_type, wait_event FROM pg_stat_activity;
+
+SELECT rolname, g.rsgname, pid, waiting, state, query, datname 
+FROM pg_roles, gp_toolkit.gp_resgroup_status g, pg_stat_activity 
+WHERE pg_roles.rolresgroup=g.groupid
+AND pg_stat_activity.usename=pg_roles.rolname;
+
+SELECT pg_cancel_backend(31905);
+

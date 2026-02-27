@@ -53,7 +53,9 @@ CREATE TABLE rtitrans (
     extra_col text,
     gploaded_time timestamp without time zone
 )
-WITH (appendonly=true) DISTRIBUTED BY (imsi);CREATE TABLE sales (
+WITH (appendonly=true) DISTRIBUTED BY (imsi);
+
+CREATE TABLE sales (
     sale_id     bigint,
     sale_date   date,
     region      text,
